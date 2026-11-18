@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#e9e0cf">
+<title>Una pequeña constelación</title>
+<style>
+:root{
+  --ink:#39352f;--paper:#eee4cf;--red:#a85b50;
+  --spring:cubic-bezier(.34,1.5,.5,1);
+  --script:"Segoe Print","Bradley Hand","Comic Sans MS",Fairbank;
+}
+*{box-sizing:border-box}
+html,body{width:100%;height:100%;margin:0;overflow:hidden}
+body{background:#eeeae1;color:var(--ink);font-family:var(--script);-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+button{font:inherit;color:inherit}
+
+/* ============ ANIMACIONES COMPARTIDAS ============ */
+@keyframes fadeIn{from{opacity:0;filter:blur(4px)}}
+@keyframes fadeUp{from{opacity:0;filter:blur(4px);translate:0 14px}}
+@keyframes starIn{from{scale:.15;opacity:0}}
+@keyframes draw{from{stroke-dashoffset:1}}
+@keyframes twinkle{from{opacity:.82;scale:.96}to{opacity:1;scale:1.12}}
+@keyframes starTurn{0%{rotate:0deg}72%{rotate:390deg}100%{rotate:360deg}}
+
+/* ============ INTRO: SOBRE Y CARTA ============ */
+#intro{
+  --w:min(78vw,320px,50vh);
+  position:fixed;inset:0;z-index:10;overflow:hidden;
+  background:radial-gradient(ellipse at 50% 45%,rgba(255,255,255,.8),transparent 60%),linear-gradient(145deg,#f5f0e7,#e7dfd1);
+}
+#intro.gone{visibility:hidden;pointer-events:none}
+#intro.opening{pointer-events:none}
+#intro.opening .letter{visibility:hidden}
+
+.env{position:absolute;width:var(--w);height:calc(var(--w)*.68);left:calc(50% - var(--w)/2);top:calc(50% - var(--w)*.06);perspective:900px}
+.env>svg,.clip{position:absolute;left:0;top:0;width:100%;height:auto;display:block;overflow:visible}
+.back{z-index:0;filter:drop-shadow(0 16px 18px rgba(63,48,27,.2))}
+.back rect{fill:#c9b58c}
+.flap{z-index:4;transform-origin:50% 0}
+.flap path{fill:#ddcca8;stroke:#cdbb97;stroke-width:.4}
+.front{z-index:3;filter:drop-shadow(0 -1px 2px rgba(60,40,20,.22))}
+.front path{fill:#e8dbc0;stroke:#d2c09b;stroke-width:.4}
+.env>.seal{z-index:5;left:40%;top:calc(var(--w)*.27);width:20%}
+.clip{z-index:2;top:auto;bottom:0;height:calc(var(--w)*2);overflow:hidden;pointer-events:none}
+.letter{position:absolute;left:calc(var(--w)*.1);top:calc(var(--w)*.77);width:calc(var(--w)*.8);height:calc(var(--w)*1.0667);pointer-events:auto}
+.paper-btn{
+  display:block;width:100%;height:100%;padding:0;border:1px solid rgba(139,116,78,.35);border-radius:6px;
+  cursor:pointer;touch-action:manipulation;background-color:#f4e9d1;
+  background-image:repeating-linear-gradient(to bottom,transparent 0 23px,rgba(91,111,137,.14) 23px 24px),radial-gradient(ellipse at 15% 12%,rgba(255,255,255,.65),transparent 60%);
+  box-shadow:0 8px 22px rgba(63,48,27,.2);transition:scale .25s var(--spring);
+}
+.paper-btn:active{scale:.96}
+.paper-btn:focus-visible{outline:2px solid #71819a;outline-offset:5px}
+.mini{display:block;width:100%;height:100%;pointer-events:none}
+.ms{transform-box:fill-box;transform-origin:center}
+.caption{position:absolute;left:0;right:0;bottom:calc(9% + env(safe-area-inset-bottom,0px));margin:0;text-align:center;color:#887b66;font-size:16px}
+
+/* Línea de tiempo de la intro */
+.play .env{animation:envIn .9s var(--spring) .15s backwards}
+@keyframes envIn{from{scale:.45;opacity:0;translate:0 50px;filter:blur(10px)}}
+.play .seal{animation:sealIn .55s var(--spring) .8s backwards,sealOff .5s ease 1.5s forwards}
+@keyframes sealIn{from{scale:0;opacity:0}}
+@keyframes sealOff{to{scale:1.7;opacity:0;filter:blur(8px)}}
+.play .flap{animation:flapOpen .85s cubic-bezier(.5,0,.25,1) 1.8s forwards}
+@keyframes flapOpen{0%{transform:rotateX(0);z-index:4}49%{z-index:4}50%{z-index:1}100%{transform:rotateX(180deg);z-index:1}}
+.play .letter{animation:rise 1.25s var(--spring) 2.7s backwards}
+@keyframes rise{from{translate:0 calc(var(--w)*.95);rotate:4deg;opacity:.75}}
+.play .paper-btn{animation:bob 3.4s ease-in-out 4s infinite alternate}
+@keyframes bob{to{translate:0 -9px;rotate:1deg}}
+.play .ms{animation:starIn .6s var(--spring) calc(3.5s + var(--i)*.1s) backwards}
+.play .mini .mask path{animation:draw 1s ease-in-out calc(3.9s + var(--i)*.25s) backwards}
+.play .caption{animation:fadeUp .7s ease 4.6s backwards}
+
+/* ============ EXPLORADOR ============ */
+#explorer{position:fixed;inset:0;z-index:11;display:none;overflow:hidden;background:radial-gradient(ellipse at center,#d8d3c9,#c9c5bd);touch-action:none;user-select:none}
+#explorer.visible{display:block}
+
+/* Se quitó will-change:transform para evitar los cuadros grises por falta de VRAM en móviles */
+#world{position:absolute;left:0;top:0;width:1500px;height:2000px;transform-origin:0 0}
+
+.paper{
+  position:absolute;inset:0;overflow:hidden;background-color:var(--paper);
+  background-image:
+    repeating-linear-gradient(to bottom,transparent 0 66px,rgba(91,111,137,.2) 66px 69px),
+    radial-gradient(ellipse at 18% 12%,rgba(255,255,255,.55),transparent 45%),
+    radial-gradient(ellipse at 82% 82%,rgba(139,106,62,.12),transparent 48%);
+  box-shadow:0 12px 35px rgba(45,35,22,.22);
+}
+.paper:after{content:"";position:absolute;inset:22px;border:2px solid rgba(133,108,70,.16);pointer-events:none}
+.paper-heading{position:absolute;top:120px;left:120px;right:120px;text-align:center;font-size:62px;color:#5d5548}
+.paper-subtitle{position:absolute;top:215px;left:150px;right:150px;text-align:center;font-size:32px;color:#80745f}
+.paper-footer{position:absolute;bottom:90px;left:120px;right:120px;text-align:center;color:#8a7c64;font-size:32px}
+.constellation{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.mask path{fill:none;stroke:#fff;stroke-width:90;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:0}
+
+.star{position:absolute;width:54px;height:54px;padding:0;border:0;background:transparent;transform:translate(-50%,-50%);cursor:pointer;touch-action:manipulation}
+.star:after{content:"";position:absolute;inset:-28px}
+.star svg{width:100%;height:100%;overflow:visible}
+.rays{fill:none;stroke:#5d6e88;stroke-width:1.6;stroke-linecap:round}
+.core{fill:#f8f0dc;stroke:#5d6e88;stroke-width:1.7;transform-box:fill-box;transform-origin:center;animation:twinkle 3.2s ease-in-out calc(var(--i)*.35s) infinite alternate}
+.star-label{position:absolute;left:46px;top:34px;white-space:nowrap;font-size:28px;color:#655c4d;pointer-events:none}
+.star.active .core{fill:#f4cfc4;stroke:var(--red)}
+.star.active .rays{stroke:var(--red)}
+.star.active svg{transform-origin:center;animation:starTurn .72s cubic-bezier(.2,.8,.25,1) both}
+
+/* Entrada de la constelación */
+#explorer.entering{animation:expIn .5.6s ease in out backwards}
+@keyframes expIn{from{opacity:0}}
+@keyframes starJump{0%{scale:.4;opacity:0}40%{scale:3.5;opacity:1}70%{scale:.85}100%{scale:1}}
+.entering .star[data-memory="0"] svg{animation:starJump 1.8s cubic-bezier(.3,.7,.3,1) .6s backwards}
+.entering .star[data-memory="0"] .star-label{animation:fadeIn .6s ease 2s backwards}
+.entering .controls,.entering .hint{animation:expIn .6s ease 1.2s backwards}
+.fly{position:fixed;z-index:12;margin:0;pointer-events:none;transition:none}
+
+/* Tarjeta de recuerdo */
+#memory-card{
+  position:absolute;z-index:10;width:min(290px,calc(100vw - 28px));padding:16px;
+  background:rgba(247,240,225,.95);border:1px solid rgba(199,183,150,.85);border-radius:28px;
+  box-shadow:0 10px 28px rgba(48,38,24,.18);
+  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(2px);
+  opacity:0;visibility:hidden;transform:translateY(10px) scale(.96);pointer-events:none;
+  transition:opacity .6s ease in out,transform .45s var(--spring),visibility .3s;
+}
+#memory-card.show{opacity:1;visibility:visible;transform:none}
+#memory-card h2{font-size:22px;font-weight:500;margin:0 0 5px;color:#4b5360}
+#memory-card p{font-size:17px;line-height:1.28;margin:0 0 9px;color:#514b40}
+#memory-card img{display:none;width:100%;max-height:150px;object-fit:cover;border:5px solid #fffaf0;border-radius:6px;box-shadow:0 2px 7px #46382025}
+#memory-card img.ready{display:block}
+#memory-card .photo-placeholder{display:grid;place-items:center;min-height:80px;border:1px dashed #b5a789;border-radius:14px;color:#8a7d67;font-size:14px;text-align:center;padding:8px}
+
+/* Controles */
+.controls{position:fixed;z-index:8;left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 8px);display:flex;justify-content:space-between;align-items:center;pointer-events:none}
+.controls button{
+  pointer-events:auto;border:1px solid #9f9279;background:rgba(246,239,225,.9);
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  color:#514938;border-radius:999px;min-width:44px;height:42px;padding:0 14px;font-size:17px;
+  box-shadow:0 2px 8px #40321d20;transition:scale .25s var(--spring);
+}
+.controls button:active{scale:.9}
+.zoom-controls{display:flex;gap:7px}
+.hint{
+  position:fixed;z-index:7;bottom:calc(12px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);
+  max-width:calc(100vw - 28px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  padding:7px 14px;border-radius:999px;background:rgba(246,239,225,.92);color:#6b604e;font-size:14px;pointer-events:none;
+}
+@media (prefers-reduced-motion:reduce){
+  *,*:before,*:after{animation-duration:.01ms!important;animation-delay:0s!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+
+<section id="intro" class="play" aria-label="Presentación de la carta">
+  <div class="env">
+    <svg class="back" viewBox="0 0 100 68" aria-hidden="true"><rect width="100" height="68" rx="7"/></svg>
+    <svg class="flap" viewBox="0 0 100 40" aria-hidden="true"><path d="M3 2H97Q101 2 98.5 5L53 37Q50 39.5 47 37L1.5 5Q-1 2 3 2Z"/></svg>
+    <div class="clip">
+      <div class="letter">
+        <button class="paper-btn" id="introPaper" type="button" aria-label="Abrir la carta">
+          <svg class="mini" id="mini" viewBox="0 0 1500 2000" aria-hidden="true"></svg>
+        </button>
+      </div>
+    </div>
+    <svg class="front" viewBox="0 0 100 68" aria-hidden="true"><path d="M0 8Q0 1.5 6 3L47 35Q50 37.5 53 35L94 3Q100 1.5 100 8V61Q100 68 93 68H7Q0 68 0 61Z"/></svg>
+    <svg class="seal" id="seal" viewBox="-50 -50 100 100" aria-hidden="true"></svg>
+  </div>
+  <p class="caption">Toca la carta si quieres je  ✦</p>
+</section>
+
+<main id="explorer" aria-label="Carta y constelaciones">
+  <div class="controls">
+    <button id="backBtn" aria-label="Volver al sobre">← Sobre</button>
+    <div class="zoom-controls">
+      <button id="minusBtn" aria-label="Alejar">−</button>
+      <button id="plusBtn" aria-label="Acercar">+</button>
+      <button id="resetBtn" aria-label="Centrar hoja">◎</button>
+    </div>
+  </div>
+
+  <div id="world">
+    <article class="paper" id="paper">
+      <div class="paper-heading">este lugar de estrellas en papek </div>
+      <div class="paper-subtitle">todas las estrellas nos dicen algunos recuerdos :D.</div>
+      <svg class="constellation" id="sky" viewBox="0 0 1500 2000" aria-hidden="true"></svg>
+      <div class="paper-footer">Aún quedan muchas estrellas si quieres miralos  ✦</div>
+    </article>
+  </div>
+
+  <aside id="memory-card" aria-live="polite">
+    <h2 id="card-title"></h2>
+    <p id="card-text"></p>
+    <div class="photo-placeholder" id="photo-placeholder">no tengo fotito wey.</div>
+    <img id="card-image" alt="Fotografía del recuerdo">
+  </aside>
+  <div class="hint">Toca una estrella ñam</div>
+</main>
+
+<script>
+(() => {
+  "use strict";
+  const memories = [
+    {title:"Aqui empezo ¿lo recuerdas?", text:" este juego genshin impact es en donde nos comocimos al principio rechaze esa solicitud pero despues por error y el mas grande y bonito que eh tenido, acepte.", image:"imagenes/recuerdo1.jpg", x:230, y:520},
+    {title:"aqui aprendi a hablar", text:"la verdad no sabia que hsbia boton y me da kervios conocer gente nueva asiesque pues no supe que hacer y improvise y no sabia que habia boton para hablar juro que la buscana pero soy ciego al parecer je.", image:"imagenes/recuerdo2.jpg", x:620, y:400},
+    {title:"mala me bloqueava", text:" pero te perdono y lo voy a hacer cada vez que me vuelvas a bloquear  .", image:"imagenes/recuerdo3.jpg", x:940, y:640},
+    {title:"recuerdo la vez que jugamos roblox y", text:".", image:"imagenes/recuerdo4.jpg", x:1120, y:330},
+    {title:"recuerdo de ti", text:"te gusta la pizza marca littles y los chokolates ferrero y eres aries se mas de ti y los mecionaria pero no quisieras leer lo que ya sabes no?.", image:"te kielo", x:430, y:900},
+    {title:"0fuyfcy99ch", text:"ngntfnfyktmdwbqndtlu.", image:"imagenes/recuerdo5.jpg", x:840, y:1040},
+    {title:"siempre te dare detalles", text:"aunque sea de lejos pero los voy a hacer por ti .", image:"iamgenes/recuerdo6.jpg", x:1110, y:940},
+    {title:"nuestra amistad", text:"esta amistad es la mas especial que tengo aprendi a ser menos timido.", image:"imagenes/timido.jpg", x:230, y:1460},
+    {title:"ese animal ", text:"esa gata que tenias era bien hermoza  .", image:"imagenes/recuerdo7.jpg", x:620, y:1410},
+    {title:"recuerdas la casa que henos echo?", text:"bueno fue hace poco pero aun asi lo rcuerdo con cariño.", image:"imagenes/casa.jpg", x:860, y:1680},
+    {title:"solo paso 1 año ", text:"solo paso 1 año de amistad pero es lo suficiente como para querer aun mas años quizas pase o no pero independientemente de lo que pase yo te seguire recordando pero en este instante siento amor,amor por como eres quien eres y como podras ser eres perfecta para alguien como yo.", image:"imagenes/teamo.jpg", x:1100, y:1380}
+  ];
+
+  // Qué estrellas se unen con línea (por número, empezando en 0)
+  const links = [[0,1,2,3],[1,4,5,6],[7,8,9,10],[4,7],[3,6,10]];
+
+  const $ = s => document.querySelector(s);
+  const W = 1500, H = 2000;
+  const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
+
+  /* Forma orgánica suave para el sello y las estrellas */
+  const cookie = (n,r,a,steps=100) => {
+    let d = "";
+    for(let i=0;i<=steps;i++){
+      const t = i/steps*Math.PI*2, q = r + a*Math.cos(n*t);
+      d += (i?"L":"M") + (q*Math.cos(t)).toFixed(2) + " " + (q*Math.sin(t)).toFixed(2);
+    }
+    return d + "Z";
+  };
+
+  /* Líneas punteadas */
+  let uid = 0;
+  const skyMarkup = (color,sw,dash,masked=true) => {
+    const id = "mk" + (uid++);
+    const ds = links.map(l => "M" + l.map(i => memories[i].x + " " + memories[i].y).join("L"));
+    if(!masked) return `<g fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="round" stroke-dasharray="${dash}">` + ds.map(d => `<path d="${d}"/>`).join("") + `</g>`;
+    return `<defs><mask id="${id}" class="mask" maskUnits="userSpaceOnUse" x="0" y="0" width="${W}" height="${H}">` +
+      ds.map((d,i) => `<path d="${d}" pathLength="1" style="--i:${i}"/>`).join("") + `</mask></defs>` +
+      `<g mask="url(#${id})" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="round" stroke-dasharray="${dash}">` +
+      ds.map(d => `<path d="${d}"/>`).join("") + `</g>`;
+  };
+
+  const intro = $("#intro"), paperBtn = $("#introPaper"), explorer = $("#explorer"), world = $("#world");
+  const paper = $("#paper"), card = $("#memory-card");
+  const cardTitle = $("#card-title"), cardText = $("#card-text"), cardImage = $("#card-image"), photoPlaceholder = $("#photo-placeholder");
+
+  /* --- Intro: sello y carta simplificada --- */
+  $("#seal").innerHTML = `<path d="${cookie(9,42,4)}" fill="#a85b50"/><path d="${cookie(9,31,2.5)}" fill="#bd7468"/>` +
+    `<text x="0" y="9" text-anchor="middle" font-size="26" fill="#f6e6d8">✦</text>`;
+
+  const miniMarkup = () =>
+    `<rect x="330" y="120" width="840" height="46" rx="23" fill="#5d5548" opacity=".28"/>` +
+    `<rect x="450" y="205" width="600" height="28" rx="14" fill="#5d5548" opacity=".12"/>` +
+    skyMarkup("#77716a",12,"8 36") +
+    memories.map((m,i) => `<g transform="translate(${m.x} ${m.y})"><path class="ms" style="--i:${i}" d="${cookie(5+i%4,30,3.2)}" fill="#f8f0dc" stroke="#66758b" stroke-width="10"/></g>`).join("");
+  $("#mini").innerHTML = miniMarkup();
+
+  /* --- Hoja grande: líneas y estrellas --- */
+  $("#sky").innerHTML = skyMarkup("#6c6a66",3.6,"5 16",false);
+
+  let rays = "";
+  for(let k=0;k<8;k++){
+    const a = k*Math.PI/4;
+    rays += `M${(11*Math.cos(a)).toFixed(1)} ${(11*Math.sin(a)).toFixed(1)}L${(18*Math.cos(a)).toFixed(1)} ${(18*Math.sin(a)).toFixed(1)}`;
+  }
+
+  const stars = memories.map((m,i) => {
+    const b = document.createElement("button");
+    b.className = "star";
+    b.dataset.memory = i;
+    b.style.cssText = `left:${m.x}px;top:${m.y}px;--i:${i}`;
+    b.setAttribute("aria-label", m.title);
+    b.innerHTML = `<svg viewBox="-20 -20 40 40"><path class="rays" d="${rays}"/><path class="core" d="${cookie(6+i%5,7.5,.9)}"/></svg>`;
+    const label = document.createElement("span");
+    label.className = "star-label";
+    label.textContent = m.title;
+    b.append(label);
+    paper.append(b);
+    return b;
+  });
+
+  /* --- Zoom, movimiento y tarjetas --- */
+  const MAX_SCALE = 1.25, CARD_SCALE = .34;
+  const fitScale = () => Math.min((innerWidth - 32)/W, (innerHeight - 120)/H);
+  const minScale = () => Math.max(.12, fitScale() * 0.92);
+  let scale = 1, x = 0, y = 0, activeMemory = -1, raf = 0, gesture = null, opening = false, gt = 0, lockCard = false, lockT = 0;
+  const pointers = new Map();
+
+  function glide(fn){
+    world.style.transition = "transform .3s cubic-bezier(.3,1.15,.5,1)";
+    fn();
+    clearTimeout(gt);
+    gt = setTimeout(() => { world.style.transition = "none"; }, 550);
+  }
+
+  function limitView(){
+    const marginX = 16, top = 60, bottom = 60;
+    const sw = W*scale, sh = H*scale;
+    if(sw <= innerWidth - marginX*2) x = (innerWidth - sw)/2;
+    else x = clamp(x, innerWidth - marginX - sw, marginX);
+    if(sh <= innerHeight - top - bottom) y = (innerHeight - sh + top - bottom)/2;
+    else y = clamp(y, innerHeight - bottom - sh, top);
+  }
+
+  function render(){
+    limitView();
+    // Usar translate() en lugar de translate3d() evita capas pesadas en GPU de gama media/baja
+    world.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) scale(${scale.toFixed(4)})`;
+    updateAutomaticCard();
+  }
+
+  function fitSheet(){
+    scale = clamp(fitScale(), minScale(), .85);
+    x = (innerWidth - W*scale)/2;
+    y = (innerHeight - H*scale)/2;
+    render();
+  }
+
+  function openFromLetter(){
+    const r = paperBtn.getBoundingClientRect();
+    const lw = paperBtn.offsetWidth, lh = paperBtn.offsetHeight;
+    const cx = r.left + r.width/2, cy = r.top + r.height/2;
+    const m0 = memories[0];
+    const reduce = matchMedia("(prefers-reduced-motion:reduce)").matches;
+
+    hideCard();
+    lockCard = true;
+    clearTimeout(lockT);
+    explorer.classList.remove("entering");
+    explorer.classList.add("visible");
+    void explorer.offsetWidth;
+    explorer.classList.add("entering");
+
+    scale = .50;
+    x = innerWidth/2 - m0.x*scale;
+    y = innerHeight/2 - m0.y*scale;
+    render();
+    lockT = setTimeout(() => { lockCard = false; updateAutomaticCard(); }, reduce ? 50 : 1800);
+
+    const S0 = scale*1.5;
+    const grow = W*S0/lw;
+    const to = `translate(${x}px,${y}px) scale(${scale})`;
+    const p0x = cx - lw/2 + m0.x/W*lw, p0y = cy - lh/2 + m0.y/H*lh;
+    const from = `translate(${p0x - m0.x*S0}px,${p0y - m0.y*S0}px) scale(${S0})`;
+
+    const fly = document.createElement("div");
+    fly.className = "paper-btn fly";
+    fly.setAttribute("aria-hidden","true");
+    fly.innerHTML = `<svg class="mini" viewBox="0 0 ${W} ${H}">${miniMarkup()}</svg>`;
+    fly.style.cssText = `left:${cx - lw/2}px;top:${cy - lh/2}px;width:${lw}px;height:${lh}px;transform-origin:${m0.x/W*100}% ${m0.y/H*100}%`;
+    document.body.append(fly);
+    const flyAnim = fly.animate([
+      {scale:1, opacity:1, clipPath:"inset(0 0 30% 0)", offset:0},
+      {scale:grow*.9, opacity:1, clipPath:"inset(0 0 0% 0)", offset:.55},
+      {scale:grow*1.06, opacity:0, clipPath:"inset(0 0 0% 0)", offset:1}
+    ], {duration: reduce ? 1 : 520, easing:"cubic-bezier(.3,.6,.3,1)", fill:"forwards"});
+    flyAnim.onfinish = () => fly.remove();
+
+    world.animate([
+      {transform:from, opacity:2, offset:0, easing:"ease-out"},
+      {transform:from, opacity:1, offset:.12},
+      {transform:to, opacity:1, offset:1}
+    ], {duration: reduce ? 1 : 900, easing:"cubic-bezier(.25,1.12,.4,1)"});
+  }
+
+  function hideCard(){
+    activeMemory = -1;
+    card.classList.remove("show");
+    stars.forEach(s => s.classList.remove("active"));
+  }
+
+  function updateAutomaticCard(){
+    if(lockCard) return;
+    if(scale < CARD_SCALE){ hideCard(); return; }
+    const cx = innerWidth/2, cy = innerHeight/2;
+    let nearest = -1, best = Infinity;
+    memories.forEach((m,i) => {
+      const d = Math.hypot(x + m.x*scale - cx, y + m.y*scale - cy);
+      if(d < best){ best = d; nearest = i; }
+    });
+    if(nearest < 0 || best > 115){ hideCard(); return; }
+    const sx = x + memories[nearest].x*scale, sy = y + memories[nearest].y*scale;
+    if(nearest !== activeMemory) showCard(nearest, sx, sy); else positionCard(sx, sy);
+  }
+
+  function positionCard(sx,sy){
+    const width = Math.min(290, innerWidth - 28);
+    let left = sx + 28;
+    if(left + width > innerWidth - 10) left = sx - width - 28;
+    left = clamp(left, 10, innerWidth - width - 10);
+    let top = sy + 28;
+    if(top + 205 > innerHeight - 58) top = sy - 220;
+    top = clamp(top, 58, innerHeight - 255);
+    card.style.left = left + "px";
+    card.style.top = top + "px";
+  }
+
+  function showCard(index,sx,sy){
+    const item = memories[index];
+    activeMemory = index;
+    stars.forEach((s,i) => s.classList.toggle("active", i === index));
+    cardTitle.textContent = item.title;
+    cardText.textContent = item.text;
+    cardImage.classList.remove("ready");
+    cardImage.removeAttribute("src");
+    photoPlaceholder.style.display = "grid";
+    if(item.image){
+      cardImage.onload = () => { cardImage.classList.add("ready"); photoPlaceholder.style.display = "none"; };
+      cardImage.onerror = () => { cardImage.classList.remove("ready"); photoPlaceholder.style.display = "grid"; };
+      cardImage.src = item.image;
+    }
+    positionCard(sx, sy);
+    card.classList.add("show");
+  }
+
+  function zoomAt(next,px=innerWidth/2,py=innerHeight/2){
+    next = clamp(next, minScale(), MAX_SCALE);
+    const wx = (px - x)/scale, wy = (py - y)/scale;
+    scale = next;
+    x = px - wx*scale;
+    y = py - wy*scale;
+    render();
+  }
+
+  /* --- Botones --- */
+  paperBtn.addEventListener("click", () => {
+    if(opening) return;
+    opening = true;
+    openFromLetter();
+    intro.classList.add("opening");
+    setTimeout(() => {
+      intro.classList.add("gone");
+      opening = false;
+    }, 1000);
+  });
+
+  $("#backBtn").addEventListener("click", () => {
+    explorer.classList.remove("visible","entering");
+    hideCard();
+    clearTimeout(lockT);
+    lockCard = false;
+    intro.classList.remove("gone","opening","play");
+    void intro.offsetWidth;
+    intro.classList.add("play");
+  });
+  $("#plusBtn").addEventListener("click", () => glide(() => zoomAt(scale*1.25)));
+  $("#minusBtn").addEventListener("click", () => glide(() => zoomAt(scale/1.25)));
+  $("#resetBtn").addEventListener("click", () => glide(fitSheet));
+
+  stars.forEach((star,i) => star.addEventListener("click", () => glide(() => {
+    zoomAt(Math.max(scale,.52));
+    x = innerWidth/2 - memories[i].x*scale;
+    y = innerHeight/2 - memories[i].y*scale;
+    render();
+  })));
+
+  /* --- Gestos: arrastrar y pellizcar --- */
+  explorer.addEventListener("pointerdown", e => {
+    if(e.target.closest("button") || e.target.closest("#memory-card")) return;
+    world.style.transition = "none";
+    explorer.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+    if(pointers.size === 1){
+      gesture = {type:"pan", startX:e.clientX, startY:e.clientY, baseX:x, baseY:y};
+    }else if(pointers.size === 2){
+      const p = [...pointers.values()];
+      gesture = {type:"pinch", distance:Math.hypot(p[1].x-p[0].x, p[1].y-p[0].y), scale,
+        midX:(p[0].x+p[1].x)/2, midY:(p[0].y+p[1].y)/2, baseX:x, baseY:y};
+    }
+  });
+
+  explorer.addEventListener("pointermove", e => {
+    if(!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+    if(!gesture) return;
+    if(pointers.size === 1 && gesture.type === "pan"){
+      x = gesture.baseX + (e.clientX - gesture.startX);
+      y = gesture.baseY + (e.clientY - gesture.startY);
+      if(!raf) raf = requestAnimationFrame(() => { raf = 0; render(); });
+    }else if(pointers.size >= 2 && gesture.type === "pinch"){
+      const p = [...pointers.values()];
+      const dist = Math.hypot(p[1].x-p[0].x, p[1].y-p[0].y);
+      const midX = (p[0].x+p[1].x)/2, midY = (p[0].y+p[1].y)/2;
+      const next = clamp(gesture.scale*(dist/Math.max(1,gesture.distance)), minScale(), MAX_SCALE);
+      const wx = (gesture.midX - gesture.baseX)/gesture.scale;
+      const wy = (gesture.midY - gesture.baseY)/gesture.scale;
+      scale = next;
+      x = midX - wx*scale;
+      y = midY - wy*scale;
+      if(!raf) raf = requestAnimationFrame(() => { raf = 0; render(); });
+    }
+  });
+
+  function endPointer(e){
+    pointers.delete(e.pointerId);
+    if(pointers.size === 1){
+      const p = [...pointers.values()][0];
+      gesture = {type:"pan", startX:p.x, startY:p.y, baseX:x, baseY:y};
+    }else if(pointers.size === 0){ gesture = null; }
+  }
+  explorer.addEventListener("pointerup", endPointer);
+  explorer.addEventListener("pointercancel", endPointer);
+  explorer.addEventListener("lostpointercapture", endPointer);
+
+  explorer.addEventListener("wheel", e => {
+    e.preventDefault();
+    zoomAt(scale*(e.deltaY < 0 ? 1.12 : 1/1.12), e.clientX, e.clientY);
+  }, {passive:false});
+
+  addEventListener("resize", () => { if(explorer.classList.contains("visible")) fitSheet(); });
+})();
+</script>
+</body>
+</html>
